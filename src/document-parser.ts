@@ -551,6 +551,16 @@ export class DocumentParser {
 
 	parseParagraphProperties(elem: Element, paragraph: WmlParagraph) {
 		this.parseDefaultProperties(elem, paragraph.cssStyle = {}, null, c => {
+			// The paragraph mark sets the line strut, including in otherwise empty
+			// paragraphs. Run-only formatting must not leak onto the whole paragraph.
+			if (c.localName === "rPr") {
+				const markStyle = {};
+				this.parseDefaultProperties(c, markStyle);
+				for (const key of ["font-size", "font-family"]) {
+					if (markStyle[key]) paragraph.cssStyle[key] = markStyle[key];
+				}
+				if (markStyle["font-size"]) paragraph.cssStyle["min-height"] = markStyle["font-size"];
+			}
 			if (parseParagraphProperty(c, paragraph, xml))
 				return true;
 

@@ -23,75 +23,40 @@ export function computePixelToPoint(container: HTMLElement = document.body) {
 
 export function updateTabStop(elem: HTMLElement, tabs: ParagraphTab[], defaultTabSize: Length, pixelToPoint: number = 72 / 96) {
     const p = elem.closest("p");
-
-    const ebb = elem.getBoundingClientRect();
+    if (!p || !p.offsetWidth) return;
+    // DOM rectangles include CSS zoom/transforms, while tab positions are points.
     const pbb = p.getBoundingClientRect();
-    const pcs = getComputedStyle(p);
-
-	const tabStops = tabs?.length > 0 ? tabs.map(t => ({
-		pos: lengthToPoint(t.position),
-		leader: t.leader,
-		style: t.style
-	})).sort((a, b) => a.pos - b.pos) : [defaultTab];
-
-	const lastTab = tabStops[tabStops.length - 1];
-	const pWidthPt = pbb.width * pixelToPoint;
-	const size = lengthToPoint(defaultTabSize);
-    let pos = lastTab.pos + size;
-
-    if (pos < pWidthPt) {
-        for (; pos < pWidthPt && tabStops.length < maxTabs; pos += size) {
-            tabStops.push({ ...defaultTab, pos: pos });
-        }
+    const scale = pbb.width / p.offsetWidth || 1;
+    const ratio = pixelToPoint / scale;
+    const left = (elem.getBoundingClientRect().left - pbb.left) * ratio;
+    const stops: TabStop[] = (tabs || []).filter(t => t.style !== "clear").map(t => ({
+        pos: lengthToPoint(t.position), leader: t.leader, style: t.style
+    })).sort((a,b) => a.pos - b.pos);
+    const size = lengthToPoint(defaultTabSize) || 36;
+    let pos = (stops[stops.length - 1]?.pos || 0) + size;
+    for (; pos <= p.offsetWidth * pixelToPoint && stops.length < maxTabs; pos += size) {
+        stops.push({...defaultTab, pos});
     }
-
-    const marginLeft = parseFloat(pcs.marginLeft);
-    const pOffset = pbb.left + marginLeft;
-    const left = (ebb.left - pOffset) * pixelToPoint;
-    const tab = tabStops.find(t => t.style != "clear" && t.pos > left);
-
-    if(tab == null)
-        return;
-
-    let width: number = 1;
-
-    if (tab.style == "right" || tab.style == "center") {
-		const tabStops = Array.from(p.querySelectorAll(`.${elem.className}`));
-		const nextIdx = tabStops.indexOf(elem) + 1;
+    const tab = stops.find(t => t.pos > left + 0.1);
+    if (!tab) return;
+    let following = 0;
+    if (tab.style === "right" || tab.style === "center") {
         const range = document.createRange();
-        range.setStart(elem, 1);
-
-		if (nextIdx < tabStops.length) {
-			range.setEndBefore(tabStops[nextIdx]);
-		} else {
-			range.setEndAfter(p);
-		}
-
-		const mul = tab.style == "center" ? 0.5 : 1;
-        const nextBB = range.getBoundingClientRect();
-		const offset = nextBB.left + mul * nextBB.width - (pbb.left - marginLeft);
-
-		width = tab.pos - offset * pixelToPoint;
-    } else {
-        width = tab.pos - left;
+        range.setStartAfter(elem);
+        const next = Array.from(p.querySelectorAll("[data-docx-tab]")).find(t =>
+            !!(elem.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING));
+        if (next) range.setEndBefore(next); else range.setEnd(p, p.childNodes.length);
+        // Empty ranges have a zero rect at the viewport origin. They occupy no
+        // following text and must not be measured relative to that origin.
+        if (range.toString().trim()) following = range.getBoundingClientRect().width * ratio;
     }
-
-    elem.innerHTML = "&nbsp;";
-    elem.style.textDecoration = "inherit";
-    elem.style.wordSpacing = `${width.toFixed(0)}pt`;
-
-    switch (tab.leader) {
-        case "dot":
-        case "middleDot":
-            elem.style.textDecoration = "underline";
-            elem.style.textDecorationStyle = "dotted";
-            break;
-
-        case "hyphen":
-        case "heavy":
-        case "underscore":
-            elem.style.textDecoration = "underline";
-            break;
+    const width = Math.max(0, tab.pos - left - following * (tab.style === "center" ? .5 : 1));
+    elem.textContent = "\u00a0";
+    Object.assign(elem.style, {display:"inline-block",width:`${width}pt`,wordSpacing:"0",fontSize:"inherit",minHeight:"0",textDecoration:"inherit"});
+    elem.dataset.docxTab = "true";
+    if (["dot","middleDot","hyphen","heavy","underscore"].includes(tab.leader)) {
+        elem.style.textDecoration = "underline";
+        if (["dot","middleDot"].includes(tab.leader)) elem.style.textDecorationStyle = "dotted";
     }
 }
 

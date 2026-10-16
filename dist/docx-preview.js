@@ -1828,6 +1828,16 @@
         }
         parseParagraphProperties(elem, paragraph) {
             this.parseDefaultProperties(elem, paragraph.cssStyle = {}, null, c => {
+                if (c.localName === "rPr") {
+                    const markStyle = {};
+                    this.parseDefaultProperties(c, markStyle);
+                    for (const key of ["font-size", "font-family"]) {
+                        if (markStyle[key])
+                            paragraph.cssStyle[key] = markStyle[key];
+                    }
+                    if (markStyle["font-size"])
+                        paragraph.cssStyle["min-height"] = markStyle["font-size"];
+                }
                 if (parseParagraphProperty(c, paragraph, globalXmlParser))
                     return true;
                 switch (c.localName) {
@@ -2792,73 +2802,45 @@
 
     const defaultTab = { pos: 0, leader: "none", style: "left" };
     const maxTabs = 50;
-    function computePixelToPoint(container = document.body) {
-        const temp = document.createElement("div");
-        temp.style.width = '100pt';
-        container.appendChild(temp);
-        const result = 100 / temp.offsetWidth;
-        container.removeChild(temp);
-        return result;
-    }
     function updateTabStop(elem, tabs, defaultTabSize, pixelToPoint = 72 / 96) {
         const p = elem.closest("p");
-        const ebb = elem.getBoundingClientRect();
-        const pbb = p.getBoundingClientRect();
-        const pcs = getComputedStyle(p);
-        const tabStops = tabs?.length > 0 ? tabs.map(t => ({
-            pos: lengthToPoint(t.position),
-            leader: t.leader,
-            style: t.style
-        })).sort((a, b) => a.pos - b.pos) : [defaultTab];
-        const lastTab = tabStops[tabStops.length - 1];
-        const pWidthPt = pbb.width * pixelToPoint;
-        const size = lengthToPoint(defaultTabSize);
-        let pos = lastTab.pos + size;
-        if (pos < pWidthPt) {
-            for (; pos < pWidthPt && tabStops.length < maxTabs; pos += size) {
-                tabStops.push({ ...defaultTab, pos: pos });
-            }
-        }
-        const marginLeft = parseFloat(pcs.marginLeft);
-        const pOffset = pbb.left + marginLeft;
-        const left = (ebb.left - pOffset) * pixelToPoint;
-        const tab = tabStops.find(t => t.style != "clear" && t.pos > left);
-        if (tab == null)
+        if (!p || !p.offsetWidth)
             return;
-        let width = 1;
-        if (tab.style == "right" || tab.style == "center") {
-            const tabStops = Array.from(p.querySelectorAll(`.${elem.className}`));
-            const nextIdx = tabStops.indexOf(elem) + 1;
+        const pbb = p.getBoundingClientRect();
+        const scale = pbb.width / p.offsetWidth || 1;
+        const ratio = pixelToPoint / scale;
+        const left = (elem.getBoundingClientRect().left - pbb.left) * ratio;
+        const stops = (tabs || []).filter(t => t.style !== "clear").map(t => ({
+            pos: lengthToPoint(t.position), leader: t.leader, style: t.style
+        })).sort((a, b) => a.pos - b.pos);
+        const size = lengthToPoint(defaultTabSize) || 36;
+        let pos = (stops[stops.length - 1]?.pos || 0) + size;
+        for (; pos <= p.offsetWidth * pixelToPoint && stops.length < maxTabs; pos += size) {
+            stops.push({ ...defaultTab, pos });
+        }
+        const tab = stops.find(t => t.pos > left + 0.1);
+        if (!tab)
+            return;
+        let following = 0;
+        if (tab.style === "right" || tab.style === "center") {
             const range = document.createRange();
-            range.setStart(elem, 1);
-            if (nextIdx < tabStops.length) {
-                range.setEndBefore(tabStops[nextIdx]);
-            }
-            else {
-                range.setEndAfter(p);
-            }
-            const mul = tab.style == "center" ? 0.5 : 1;
-            const nextBB = range.getBoundingClientRect();
-            const offset = nextBB.left + mul * nextBB.width - (pbb.left - marginLeft);
-            width = tab.pos - offset * pixelToPoint;
+            range.setStartAfter(elem);
+            const next = Array.from(p.querySelectorAll("[data-docx-tab]")).find(t => !!(elem.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING));
+            if (next)
+                range.setEndBefore(next);
+            else
+                range.setEnd(p, p.childNodes.length);
+            if (range.toString().trim())
+                following = range.getBoundingClientRect().width * ratio;
         }
-        else {
-            width = tab.pos - left;
-        }
-        elem.innerHTML = "&nbsp;";
-        elem.style.textDecoration = "inherit";
-        elem.style.wordSpacing = `${width.toFixed(0)}pt`;
-        switch (tab.leader) {
-            case "dot":
-            case "middleDot":
-                elem.style.textDecoration = "underline";
+        const width = Math.max(0, tab.pos - left - following * (tab.style === "center" ? .5 : 1));
+        elem.textContent = "\u00a0";
+        Object.assign(elem.style, { display: "inline-block", width: `${width}pt`, wordSpacing: "0", fontSize: "inherit", minHeight: "0", textDecoration: "inherit" });
+        elem.dataset.docxTab = "true";
+        if (["dot", "middleDot", "hyphen", "heavy", "underscore"].includes(tab.leader)) {
+            elem.style.textDecoration = "underline";
+            if (["dot", "middleDot"].includes(tab.leader))
                 elem.style.textDecorationStyle = "dotted";
-                break;
-            case "hyphen":
-            case "heavy":
-            case "underscore":
-                elem.style.textDecoration = "underline";
-                break;
         }
     }
     function lengthToPoint(length) {
@@ -2974,7 +2956,6 @@
             }
             this.postRenderTasks.forEach(t => t());
             await Promise.allSettled(this.tasks);
-            this.refreshTabStops();
             return result;
         }
         renderTheme(themePart) {
@@ -3668,13 +3649,16 @@ section.${c}>footer { z-index: 1; }
             var tabSpan = this.h({ tagName: "span", children: ["\u2003"] });
             if (this.options.experimental) {
                 tabSpan.className = this.tabStopClass();
+                tabSpan.dataset.docxTab = "true";
                 var stops = findParent(elem, DomType.Paragraph)?.tabs;
                 this.currentTabs.push({ stops, span: tabSpan });
             }
             return tabSpan;
         }
         renderBookmarkStart(elem) {
-            return this.h({ tagName: "span", id: elem.name });
+            const anchor = this.h({ tagName: "span", id: elem.name });
+            Object.assign(anchor.style, { fontSize: "0", lineHeight: "0", minHeight: "0" });
+            return anchor;
         }
         renderRun(elem) {
             if (elem.fieldRun)
@@ -3931,15 +3915,13 @@ section.${c}>footer { z-index: 1; }
             };
             return mapping[format] ?? format;
         }
-        refreshTabStops() {
+        async layout() {
             if (!this.options.experimental)
                 return;
-            setTimeout(() => {
-                const pixelToPoint = computePixelToPoint();
-                for (let tab of this.currentTabs) {
-                    updateTabStop(tab.span, tab.stops, this.defaultTabSize, pixelToPoint);
-                }
-            }, 500);
+            await document.fonts.ready;
+            for (const tab of this.currentTabs) {
+                updateTabStop(tab.span, tab.stops, this.defaultTabSize);
+            }
         }
         createElementNS(ns, tagName, props, children) {
             return this.h({ ns, tagName, children, ...props });
@@ -3962,6 +3944,37 @@ section.${c}>footer { z-index: 1; }
         while (parent != null && parent.type != type)
             parent = parent.parent;
         return parent;
+    }
+
+    async function renderPdfPreview(data, body, styles, adapter, className) {
+        if (!adapter)
+            throw new Error('PDF preview requires an authoritative PDF adapter');
+        const pdfBytes = await adapter.convert(data);
+        const pages = await adapter.renderPages(pdfBytes.slice());
+        if (!pages.length)
+            throw new Error('PDF preview contains no pages');
+        const wrapper = document.createElement('div');
+        wrapper.className = `${className}-wrapper`;
+        wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:14px';
+        for (const [index, page] of pages.entries()) {
+            if (!(Number.isFinite(page.width) && Number.isFinite(page.height) && page.width > 0 && page.height > 0) || !page.imageUrl.startsWith('data:image/'))
+                throw new Error('Invalid PDF page');
+            const section = document.createElement('section');
+            section.className = className;
+            section.dataset.pageNumber = String(index + 1);
+            section.style.cssText = `width:${page.width}px;height:${page.height}px;flex:none;background:white;box-shadow:0 2px 8px #0003`;
+            const image = document.createElement('img');
+            image.src = page.imageUrl;
+            image.alt = `Page ${index + 1} of ${pages.length}`;
+            image.style.cssText = 'display:block;width:100%;height:100%';
+            section.append(image);
+            wrapper.append(section);
+        }
+        await Promise.all(Array.from(wrapper.querySelectorAll('img')).map(image => image.decode()));
+        styles.replaceChildren();
+        body.replaceChildren(wrapper);
+        body.dataset.renderMode = 'pdf';
+        return { pdfBytes, pageCount: pages.length };
     }
 
     const defaultOptions = {
@@ -3996,14 +4009,49 @@ section.${c}>footer { z-index: 1; }
         return await renderer.render(document, ops);
     }
     async function renderAsync(data, bodyContainer, styleContainer, userOptions) {
+        if (userOptions?.renderMode === 'pdf') {
+            return renderPdfPreview(data, bodyContainer, styleContainer ?? document.createElement('div'), userOptions.pdfAdapter, userOptions.className ?? 'docx');
+        }
         const doc = await parseAsync(data, userOptions);
-        const nodes = await renderDocument(doc, userOptions);
+        const renderer = new HtmlRenderer();
+        const nodes = await renderer.render(doc, { ...defaultOptions, ...userOptions });
         styleContainer ?? (styleContainer = bodyContainer);
         styleContainer.innerHTML = "";
         bodyContainer.innerHTML = "";
         for (let n of nodes) {
             const c = n.nodeName === "STYLE" ? styleContainer : bodyContainer;
             c.appendChild(n);
+        }
+        let stage;
+        let bodyPlace, stylePlace;
+        if (userOptions?.experimental && !bodyContainer.isConnected) {
+            if (bodyContainer.parentNode) {
+                bodyPlace = document.createComment('docx-body');
+                bodyContainer.before(bodyPlace);
+            }
+            if (styleContainer !== bodyContainer && styleContainer.parentNode) {
+                stylePlace = document.createComment('docx-styles');
+                styleContainer.before(stylePlace);
+            }
+            stage = document.createElement('div');
+            Object.assign(stage.style, { position: 'fixed', visibility: 'hidden', left: '0', top: '0', width: 'max-content' });
+            stage.appendChild(bodyContainer);
+            if (styleContainer !== bodyContainer)
+                stage.appendChild(styleContainer);
+            document.body.appendChild(stage);
+        }
+        try {
+            await renderer.layout();
+        }
+        finally {
+            if (stage) {
+                bodyContainer.remove();
+                if (styleContainer !== bodyContainer)
+                    styleContainer.remove();
+                stage.remove();
+                bodyPlace?.replaceWith(bodyContainer);
+                stylePlace?.replaceWith(styleContainer);
+            }
         }
         return doc;
     }

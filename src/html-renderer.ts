@@ -11,7 +11,7 @@ import { Options } from './docx-preview';
 import { DocumentElement } from './document/document';
 import { WmlParagraph } from './document/paragraph';
 import { asArray, encloseFontFamily, escapeClassName, isString, keyBy, mergeDeep } from './utils';
-import { computePixelToPoint, updateTabStop } from './javascript';
+import { updateTabStop } from './javascript';
 import { FontTablePart } from './font-table/font-table';
 import { FooterHeaderReference, SectionProperties } from './document/section';
 import { WmlRun } from './document/run';
@@ -132,7 +132,6 @@ export class HtmlRenderer {
 
 		await Promise.allSettled(this.tasks);
 
-		this.refreshTabStops();
 
 		return result;
 	}
@@ -1094,6 +1093,7 @@ section.${c}>footer { z-index: 1; }
 
 		if (this.options.experimental) {
 			tabSpan.className = this.tabStopClass();
+			tabSpan.dataset.docxTab = "true";
 			var stops = findParent<WmlParagraph>(elem, DomType.Paragraph)?.tabs;
 			this.currentTabs.push({ stops, span: tabSpan });
 		}
@@ -1102,7 +1102,9 @@ section.${c}>footer { z-index: 1; }
 	}
 
 	renderBookmarkStart(elem: WmlBookmarkStart) {
-		return this.h({ tagName: "span", id: elem.name });
+		const anchor = this.h({ tagName: "span", id: elem.name }) as HTMLElement;
+		Object.assign(anchor.style, {fontSize: "0", lineHeight: "0", minHeight: "0"});
+		return anchor;
 	}
 
 	renderRun(elem: WmlRun) {
@@ -1433,17 +1435,12 @@ section.${c}>footer { z-index: 1; }
 		return mapping[format] ?? format;
 	}
 
-	refreshTabStops() {
-		if (!this.options.experimental)
-			return;
-
-		setTimeout(() => {
-			const pixelToPoint = computePixelToPoint();
-
-			for (let tab of this.currentTabs) {
-				updateTabStop(tab.span, tab.stops, this.defaultTabSize, pixelToPoint);
-			}
-		}, 500);
+	async layout() {
+		if (!this.options.experimental) return;
+		await document.fonts.ready;
+		for (const tab of this.currentTabs) {
+			updateTabStop(tab.span, tab.stops, this.defaultTabSize);
+		}
 	}
 
 	createElementNS(ns: any, tagName: string, props?: Partial<Record<any, any>>, children?: any[]) {

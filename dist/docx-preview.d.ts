@@ -13,7 +13,15 @@ export type HElement = {
     children?: (HElement | Node | string)[];
 } & Record<string, any>;
 
+export interface PdfPage { width:number; height:number; imageUrl:string; }
+export interface PdfPreviewResult { pdfBytes:Uint8Array; pageCount:number; }
+export interface PdfPreviewAdapter {
+ convert(data:Blob|ArrayBuffer|Uint8Array):Promise<Uint8Array>;
+ renderPages(pdf:Uint8Array):Promise<PdfPage[]>;
+}
 export interface Options {
+    renderMode?: 'html' | 'pdf';
+    pdfAdapter?: PdfPreviewAdapter;
     inWrapper: boolean;
     hideWrapperOnPrint: boolean;
     ignoreWidth: boolean;
