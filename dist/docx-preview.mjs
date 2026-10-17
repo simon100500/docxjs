@@ -2805,13 +2805,14 @@ function updateTabStop(elem, tabs, defaultTabSize, pixelToPoint = 72 / 96) {
     const pbb = p.getBoundingClientRect();
     const scale = pbb.width / p.offsetWidth || 1;
     const ratio = pixelToPoint / scale;
-    const left = (elem.getBoundingClientRect().left - pbb.left) * ratio;
+    const indent = (parseFloat(getComputedStyle(p).marginLeft) || 0) * pixelToPoint;
+    const left = (elem.getBoundingClientRect().left - pbb.left) * ratio + indent;
     const stops = (tabs || []).filter(t => t.style !== "clear").map(t => ({
         pos: lengthToPoint(t.position), leader: t.leader, style: t.style
     })).sort((a, b) => a.pos - b.pos);
     const size = lengthToPoint(defaultTabSize) || 36;
     let pos = (stops[stops.length - 1]?.pos || 0) + size;
-    for (; pos <= p.offsetWidth * pixelToPoint && stops.length < maxTabs; pos += size) {
+    for (; pos <= p.offsetWidth * pixelToPoint + indent && stops.length < maxTabs; pos += size) {
         stops.push({ ...defaultTab, pos });
     }
     const tab = stops.find(t => t.pos > left + 0.1);

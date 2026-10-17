@@ -60,6 +60,20 @@ describe('Agen fidelity regressions', function () {
       expect(getComputedStyle(tab,'::after').textDecorationLine).toBe('none');
     } finally {body.remove();styles.remove();}
   });
+  for(const indent of [720,-108]) for(const zoom of [1,.5,1.25]) it(`keeps tab positions at the text-column origin with indent ${indent} and zoom ${zoom}`,async function(){
+    const body=document.createElement('div'),styles=document.createElement('div');
+    body.style.zoom=String(zoom);
+    const indented=xml.replace('<w:pPr>','<w:pPr><w:ind w:left="'+indent+'"/>');
+    await docx.renderAsync(await documentBytes(indented),body,styles,{experimental:true});
+    document.body.append(styles,body);
+    try {
+      const p=body.querySelector('p'),tab=body.querySelector('[data-docx-tab]');
+      const endpoint=(tab.getBoundingClientRect().right-p.getBoundingClientRect().left)/zoom+indent/20*96/72;
+      expect(Math.abs(endpoint-320)).toBeLessThan(2);
+      const range=document.createRange();range.selectNodeContents(p.querySelector('span:not([id])'));
+      expect(Math.abs(tab.getBoundingClientRect().bottom-range.getBoundingClientRect().bottom)/zoom).toBeLessThan(4);
+    } finally {body.remove();styles.remove();}
+  });
   it('preserves authoritative pages and returns the original PDF bytes', async function(){
     const body=document.createElement('div'),styles=document.createElement('div');
     const bytes=new Uint8Array([37,80,68,70,45]);

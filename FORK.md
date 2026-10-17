@@ -21,6 +21,9 @@ HTML is not claimed to reproduce every Word layout feature.
 
 ## HTML fixes
 
+- Resolve tab positions from the text-column origin, including positive and
+  negative paragraph indents. Indented attachment-list tabs stay on the item
+  line instead of overflowing and wrapping onto a separate underline-only line.
 - Decorate the entire tab advance with native font underline metrics, including
   empty fields and separate tab runs. An invisible generated glyph with measured
   letter spacing carries the same text decoration as the run; no border or

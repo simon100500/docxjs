@@ -28,13 +28,16 @@ export function updateTabStop(elem: HTMLElement, tabs: ParagraphTab[], defaultTa
     const pbb = p.getBoundingClientRect();
     const scale = pbb.width / p.offsetWidth || 1;
     const ratio = pixelToPoint / scale;
-    const left = (elem.getBoundingClientRect().left - pbb.left) * ratio;
+    // Word tab positions use the text-column origin, before paragraph indents.
+    // CSS margin moves the paragraph box; include it when locating the glyph.
+    const indent = (parseFloat(getComputedStyle(p).marginLeft) || 0) * pixelToPoint;
+    const left = (elem.getBoundingClientRect().left - pbb.left) * ratio + indent;
     const stops: TabStop[] = (tabs || []).filter(t => t.style !== "clear").map(t => ({
         pos: lengthToPoint(t.position), leader: t.leader, style: t.style
     })).sort((a,b) => a.pos - b.pos);
     const size = lengthToPoint(defaultTabSize) || 36;
     let pos = (stops[stops.length - 1]?.pos || 0) + size;
-    for (; pos <= p.offsetWidth * pixelToPoint && stops.length < maxTabs; pos += size) {
+    for (; pos <= p.offsetWidth * pixelToPoint + indent && stops.length < maxTabs; pos += size) {
         stops.push({...defaultTab, pos});
     }
     const tab = stops.find(t => t.pos > left + 0.1);
