@@ -37,6 +37,7 @@ describe('Agen fidelity regressions', function () {
       const box=tab.getBoundingClientRect(),paint=getComputedStyle(tab,'::after'),run=getComputedStyle(tab.parentElement);
       expect(tab.textContent).toBe('\t');
       expect(tab.children.length).toBe(0);
+      expect(tab.getAttribute('aria-hidden')).toBe('true');
       expect(paint.content).toBe('"x"');
       expect(paint.webkitTextFillColor).toBe('rgba(0, 0, 0, 0)');
       expect(paint.textDecorationLine).toBe(run.textDecorationLine);

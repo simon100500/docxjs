@@ -2839,6 +2839,7 @@ function updateTabStop(elem, tabs, defaultTabSize, pixelToPoint = 72 / 96) {
     elem.textContent = "\t";
     elem.style.setProperty('--docx-tab-spacing', `${width - glyphWidth}pt`);
     elem.dataset.tabLayout = 'native';
+    elem.setAttribute('aria-hidden', 'true');
     elem.dataset.docxTab = "true";
     if (["dot", "middleDot", "hyphen", "heavy", "underscore"].includes(tab.leader)) {
         elem.style.textDecoration = "underline";
