@@ -51,41 +51,22 @@ export function updateTabStop(elem: HTMLElement, tabs: ParagraphTab[], defaultTa
         if (range.toString().trim()) following = range.getBoundingClientRect().width * ratio;
     }
     const width = Math.max(0, tab.pos - left - following * (tab.style === "center" ? .5 : 1));
-    elem.textContent = "\u00a0";
-    Object.assign(elem.style, {display:"inline-block",width:`${width}pt`,wordSpacing:"0",fontSize:"inherit",minHeight:"0",textDecoration:"inherit"});
+    delete elem.dataset.tabLayout;
+    elem.textContent = "x";
+    Object.assign(elem.style, {display:"inline-block",width:`${width}pt`,wordSpacing:"0",letterSpacing:"0",whiteSpace:"pre",tabSize:"0",fontSize:"inherit",minHeight:"0",textDecoration:"inherit"});
+    const glyph = document.createRange();
+    glyph.selectNodeContents(elem);
+    const glyphWidth = glyph.getBoundingClientRect().width * ratio;
+    // Keep a real tab in selectable text. Its CSS advance is zero; the native
+    // decoration carrier in ::after supplies the exact measured advance.
+    elem.textContent = "\t";
+    elem.style.setProperty('--docx-tab-spacing', `${width - glyphWidth}pt`);
+    elem.dataset.tabLayout = 'native';
     elem.dataset.docxTab = "true";
     if (["dot","middleDot","hyphen","heavy","underscore"].includes(tab.leader)) {
         elem.style.textDecoration = "underline";
         if (["dot","middleDot"].includes(tab.leader)) elem.style.textDecorationStyle = "dotted";
     }
-    renderTabUnderline(elem, width);
-}
-
-// Text decoration paints the NBSP glyph, not the width of its inline-block.
-// Anchor a full-width rule at the text baseline without changing line metrics.
-function renderTabUnderline(elem: HTMLElement, width: number) {
-    let decoration: CSSStyleDeclaration;
-    for (let run: HTMLElement = elem; run; run = run.parentElement) {
-        const style = getComputedStyle(run);
-        if (style.textDecorationLine.includes("underline")) {
-            decoration = style;
-            break;
-        }
-        if (run.tagName === "P") break;
-    }
-    if (!decoration || !width) return;
-    const baseline = document.createElement("span"), line = document.createElement("span");
-    baseline.setAttribute("aria-hidden", "true");
-    Object.assign(baseline.style, {display:"inline-block",position:"relative",width:"0",height:"0",minHeight:"0",fontSize:"inherit",lineHeight:"0",verticalAlign:"baseline"});
-    line.className = "docx-tab-underline";
-    Object.assign(line.style, {
-        position:"absolute",left:"0",top:"0.08em",width:`${width}pt`,height:"0",minHeight:"0",fontSize:"inherit",lineHeight:"0",pointerEvents:"none",
-        borderTopStyle:decoration.textDecorationStyle === "wavy" ? "solid" : decoration.textDecorationStyle,
-        borderTopWidth:decoration.textDecorationThickness === "auto" || decoration.textDecorationThickness === "from-font" ? "0.06em" : decoration.textDecorationThickness,
-        borderTopColor:decoration.textDecorationColor
-    });
-    baseline.appendChild(line);
-    elem.prepend(baseline);
 }
 
 function lengthToPoint(length: Length): number {

@@ -534,6 +534,12 @@ section.${c}>footer { z-index: 1; }
 .${c} svg { fill: transparent; }
 `;
 
+        // Native text decoration uses the font's own underline metrics. The
+        // transparent generated glyph leaves the selectable tab unchanged.
+        if (this.options.experimental) {
+            styleText += `.${c}-tab-stop[data-tab-layout="native"]::after { content: "x"; font: inherit; white-space: pre; letter-spacing: var(--docx-tab-spacing); -webkit-text-fill-color: transparent; text-decoration: inherit; text-decoration-skip-ink: none; }`;
+        }
+
 		if (this.options.renderComments) {
 			styleText += `
 .${c}-comment-ref { cursor: default; }

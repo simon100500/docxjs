@@ -21,10 +21,11 @@ HTML is not claimed to reproduce every Word layout feature.
 
 ## HTML fixes
 
-- Paint underlined tabs across their entire measured advance, including empty
-  fields and separate tab runs. A zero-size baseline anchor keeps line height
-  unchanged; a positioned rule fills the width that browser text decoration
-  would otherwise leave blank. Covered at 50%, 100% and 125% CSS zoom.
+- Decorate the entire tab advance with native font underline metrics, including
+  empty fields and separate tab runs. An invisible generated glyph with measured
+  letter spacing carries the same text decoration as the run; no border or
+  manually positioned line is used. Selectable text retains the original tab.
+  Covered at 50%, 100% and 125% CSS zoom.
 - Read paragraph-mark font size/family to establish the correct line strut.
 - Zero the font/line height of empty bookmark anchors.
 - Measure tab stops after fonts are ready, before `renderAsync` resolves.

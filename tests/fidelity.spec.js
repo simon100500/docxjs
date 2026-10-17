@@ -33,27 +33,31 @@ describe('Agen fidelity regressions', function () {
     broadStyle.textContent='.docx span {font-size:14pt;min-height:14pt}';styles.append(broadStyle);
     document.body.append(styles,body);
     try {
-      const p=body.querySelector('p'),tab=body.querySelector('[data-docx-tab]'),line=tab.querySelector('.docx-tab-underline');
-      expect(line).not.toBeNull();
-      const rule=line.getBoundingClientRect(),box=tab.getBoundingClientRect(),paint=getComputedStyle(line);
-      expect(Math.abs(rule.left-box.left)/zoom).toBeLessThan(1);
-      expect(Math.abs(rule.right-box.right)/zoom).toBeLessThan(1);
-      expect(Math.abs((rule.right-p.getBoundingClientRect().left)/zoom-320)).toBeLessThan(2);
-      expect(parseFloat(paint.borderTopWidth)).toBeGreaterThan(0);
-      expect(paint.borderTopStyle).toBe('solid');
-      // Chrome rounds thin borders to one device pixel at 50% zoom.
-      expect(rule.height/zoom).toBeLessThanOrEqual(2);
-      expect(getComputedStyle(line.parentElement).minHeight).toBe('0px');
-      expect(rule.top).toBeGreaterThan(box.top);
-      expect(rule.top).toBeLessThan(box.bottom);
+      const p=body.querySelector('p'),tab=body.querySelector('[data-docx-tab]');
+      const box=tab.getBoundingClientRect(),paint=getComputedStyle(tab,'::after'),run=getComputedStyle(tab.parentElement);
+      expect(tab.textContent).toBe('\t');
+      expect(tab.children.length).toBe(0);
+      expect(paint.content).toBe('"x"');
+      expect(paint.webkitTextFillColor).toBe('rgba(0, 0, 0, 0)');
+      expect(paint.textDecorationLine).toBe(run.textDecorationLine);
+      expect(paint.textDecorationThickness).toBe(run.textDecorationThickness);
+      expect(paint.textUnderlinePosition).toBe(run.textUnderlinePosition);
+      expect(paint.textUnderlineOffset).toBe(run.textUnderlineOffset);
+      expect(paint.font).toBe(run.font);
+      expect(parseFloat(paint.borderTopWidth)).toBe(0);
+      expect(Math.abs((box.right-p.getBoundingClientRect().left)/zoom-320)).toBeLessThan(2);
       expect(box.height/zoom).toBeLessThan(20);
     } finally {body.remove();styles.remove();}
   });
   it('does not draw rules on tabs without underline formatting',async function(){
     const body=document.createElement('div'),styles=document.createElement('div');
     await docx.renderAsync(await documentBytes(xml.replace(/<w:u w:val="single"\/>/g,'')),body,styles,{experimental:true});
-    expect(body.querySelector('[data-docx-tab]')).not.toBeNull();
-    expect(body.querySelector('.docx-tab-underline')).toBeNull();
+    document.body.append(styles,body);
+    try {
+      expect(body.querySelector('[data-docx-tab]')).not.toBeNull();
+      const tab=body.querySelector('[data-docx-tab]');
+      expect(getComputedStyle(tab,'::after').textDecorationLine).toBe('none');
+    } finally {body.remove();styles.remove();}
   });
   it('preserves authoritative pages and returns the original PDF bytes', async function(){
     const body=document.createElement('div'),styles=document.createElement('div');
