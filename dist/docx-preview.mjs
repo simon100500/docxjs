@@ -2838,6 +2838,33 @@ function updateTabStop(elem, tabs, defaultTabSize, pixelToPoint = 72 / 96) {
         if (["dot", "middleDot"].includes(tab.leader))
             elem.style.textDecorationStyle = "dotted";
     }
+    renderTabUnderline(elem, width);
+}
+function renderTabUnderline(elem, width) {
+    let decoration;
+    for (let run = elem; run; run = run.parentElement) {
+        const style = getComputedStyle(run);
+        if (style.textDecorationLine.includes("underline")) {
+            decoration = style;
+            break;
+        }
+        if (run.tagName === "P")
+            break;
+    }
+    if (!decoration || !width)
+        return;
+    const baseline = document.createElement("span"), line = document.createElement("span");
+    baseline.setAttribute("aria-hidden", "true");
+    Object.assign(baseline.style, { display: "inline-block", position: "relative", width: "0", height: "0", minHeight: "0", fontSize: "inherit", lineHeight: "0", verticalAlign: "baseline" });
+    line.className = "docx-tab-underline";
+    Object.assign(line.style, {
+        position: "absolute", left: "0", top: "0.08em", width: `${width}pt`, height: "0", minHeight: "0", fontSize: "inherit", lineHeight: "0", pointerEvents: "none",
+        borderTopStyle: decoration.textDecorationStyle === "wavy" ? "solid" : decoration.textDecorationStyle,
+        borderTopWidth: decoration.textDecorationThickness === "auto" || decoration.textDecorationThickness === "from-font" ? "0.06em" : decoration.textDecorationThickness,
+        borderTopColor: decoration.textDecorationColor
+    });
+    baseline.appendChild(line);
+    elem.prepend(baseline);
 }
 function lengthToPoint(length) {
     return parseFloat(length);

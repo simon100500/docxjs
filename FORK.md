@@ -14,13 +14,17 @@ PDF page boundaries and all document typography come from the converter. Errors
 are propagated; there is no silent fallback to approximate HTML. No converter,
 worker, network service or PDF package is bundled into this library.
 
-In Agen the converter is installed Microsoft Word; PDF.js rasterizes the PDF.
-This mode is for final output. It is rasterized and has no text selection or
-interactive bookmark mapping. HTML remains available for template field editing;
-it is not claimed to reproduce every Word layout feature.
+The optional adapter API is retained for consumers that supply a converter.
+Agen currently uses HTML for both filled acts and template field editing;
+it does not install or invoke a Microsoft Word converter or PDF.js rasterizer.
+HTML is not claimed to reproduce every Word layout feature.
 
 ## HTML fixes
 
+- Paint underlined tabs across their entire measured advance, including empty
+  fields and separate tab runs. A zero-size baseline anchor keeps line height
+  unchanged; a positioned rule fills the width that browser text decoration
+  would otherwise leave blank. Covered at 50%, 100% and 125% CSS zoom.
 - Read paragraph-mark font size/family to establish the correct line strut.
 - Zero the font/line height of empty bookmark anchors.
 - Measure tab stops after fonts are ready, before `renderAsync` resolves.
